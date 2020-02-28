@@ -33,19 +33,19 @@ function checkSystem()
 {
     result=$(id | awk '{print $1}')
     if [ $result != "uid=0(root)" ]; then
-        echo "请以root身份执行该脚本"
+        echo "run as root"
         exit 1
     fi
 
     if [ ! -f /etc/centos-release ];then
-        echo "系统不是CentOS"
+        echo "system is not CentOS"
         exit 1
     fi
     
     result=`cat /etc/centos-release|grep -oE "[0-9.]+"`
     main=${result%%.*}
     if [ $main -lt 7 ]; then
-        echo "不受支持的CentOS版本"
+        echo "unsupport CentOS version!"
         exit 1
     fi
 }
@@ -55,20 +55,20 @@ function getData()
     yum install -y bind-utils curl
     IP=`curl -s -4 icanhazip.com`
     echo " "
-    echo " 本脚本为带伪装的一键脚本，运行之前请确认如下条件已经具备："
-    echo -e "  ${red}1. 一个域名${plain}"
-    echo -e "  ${red}2. 域名的某个主机名解析指向当前服务器ip（${IP}）${plain}"
+    echo " check conditions："
+    echo -e "  ${red}1. domain${plain}"
+    echo -e "  ${red}2. server IP which domain will be resolved to(${IP})${plain}"
     echo " "
-    read -p "确认满足按y，按其他退出脚本：" answer
+    read -p "YES/NO?" answer
     if [ "${answer}" != "y" ]; then
         exit 0
     fi
 
     while true
     do
-        read -p "请输入您的主机名：" domain
+        read -p "domain name:" domain
         if [ -z "${domain}" ]; then
-            echo "主机名输入错误，请重新输入！"
+            echo "Wrong domain name, retry again!"
         else
             break
         fi
@@ -77,21 +77,21 @@ function getData()
     res=`host ${domain}`
     res=`echo -n ${res} | grep ${IP}`
     if [ -z "${res}" ]; then
-        echo -n "${domain} 解析结果："
+        echo -n "${domain} Resolved result:"
         host ${domain}
-        echo "主机未解析到当前服务器IP(${IP})!"
+        echo "Domain can't be resolved to IP(${IP})!"
         exit 1
     fi
 
     while true
     do
-        read -p "请输入伪装路径，以/开头：" path
+        read -p "Input masquerading path, begin with/:" path
         if [ -z "${path}" ]; then
-            echo "请输入伪装路径，以/开头！"
+            echo "Input masquerading path, begin with/ !!"
         elif [ "${path:0:1}" != "/" ]; then
-            echo "伪装路径必须以/开头！"
+            echo "Masquerading path must be begin with/ !!"
         elif [ "${path}" = "/" ]; then
-            echo  "不能使用根路径！"
+            echo  "Can't be root path !!"
         else
             break
         fi
@@ -109,10 +109,10 @@ function preinstall()
     systemctl restart sshd
     ret=`nginx -t`
     if [ "$?" != "0" ]; then
-        echo "更新系统..."
+        echo "Update system..."
         yum update -y
     fi
-    echo "安装必要软件"
+    echo "Install neccessary dependancy..."
     yum install -y epel-release telnet wget vim net-tools ntpdate unzip
 
     if [ -s /etc/selinux/config ] && grep 'SELINUX=enforcing' /etc/selinux/config; then
@@ -123,11 +123,11 @@ function preinstall()
 
 function installV2ray()
 {
-    echo 安装v2ray...
+    echo "Install v2ray..."
     bash <(curl -L -s https://install.direct/go.sh)
 
     if [ ! -f /etc/v2ray/config.json ]; then
-        echo "安装失败，请到 https://www.hijk.pw 网站反馈"
+        echo "Install failed !!!"
         exit 1
     fi
 
@@ -154,10 +154,10 @@ function installV2ray()
     sleep 3
     res=`netstat -nltp | grep ${port} | grep v2ray`
     if [ "${res}" = "" ]; then
-        echo "v2ray启动失败，请检查端口是否被占用！"
+        echo "v2ray start failed. Check whether the port available !!"
         exit 1
     fi
-    echo "v2ray安装成功！"
+    echo "Install v2ray SUCCESS !!"
 }
 
 function installNginx()
@@ -166,8 +166,8 @@ function installNginx()
     systemctl stop nginx
     res=`netstat -ntlp| grep -E ':80|:443'`
     if [ "${res}" != "" ]; then
-        echo " 其他进程占用了80或443端口，请先关闭再运行一键脚本"
-        echo " 端口占用信息如下："
+        echo " 80 OR 443 Is in used, please check again !!"
+        echo " Who are using such ports: "
         echo ${res}
         exit 1
     fi
@@ -177,7 +177,7 @@ function installNginx()
     fi
     res=`which pip3`
     if [ "$?" != "0" ]; then
-        echo -e " pip3安装失败，请到 ${red}https://www.hijk.pw${plain} 反馈"
+        echo -e " Install pip3 failed !!"
         exit 1
     fi
     pip3 install certbot
@@ -187,7 +187,7 @@ function installNginx()
     fi
     certbot certonly --standalone --agree-tos --register-unsafely-without-email -d ${domain}
     if [ "$?" != "0" ]; then
-        echo -e " 获取证书失败，请到 ${red}https://www.hijk.pw${plain} 反馈"
+        echo -e " Accquire centification failed !!"
         exit 1
     fi
 
@@ -283,7 +283,7 @@ EOF
     sleep 3
     res=`netstat -nltp | grep 443 | grep nginx`
     if [ "${res}" = "" ]; then
-        echo -e "nginx启动失败！ 请到 ${red}https://www.hijk.pw${plain} 反馈"
+        echo -e "Start nginx failed !!"
         exit 1
     fi
 }
@@ -302,14 +302,14 @@ function installBBR()
 {
     result=$(lsmod | grep bbr)
     if [ "$result" != "" ]; then
-        echo BBR模块已安装
+        echo "BBR is installed !!"
         bbr=true
         echo "3" > /proc/sys/net/ipv4/tcp_fastopen
         echo "net.ipv4.tcp_fastopen = 3" >> /etc/sysctl.conf
         return;
     fi
 
-    echo 安装BBR模块...
+    echo "Install BBR..."
     rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
     rpm -Uvh http://www.elrepo.org/elrepo-release-7.0-4.el7.elrepo.noarch.rpm
     yum --enablerepo=elrepo-kernel install kernel-ml -y
@@ -327,9 +327,9 @@ function info()
     ip=`curl -s -4 icanhazip.com`
     port=443
     res=`netstat -nltp | grep v2ray`
-    [ -z "$res" ] && v2status="${red}已停止${plain}" || v2status="${green}正在运行${plain}"
+    [ -z "$res" ] && v2status="${red}STOPED${plain}" || v2status="${green}RUNNING${plain}"
     res=`netstat -nltp | grep ${port} | grep nginx`
-    [ -z "$res" ] && ngstatus="${red}已停止${plain}" || ngstatus="${green}正在运行${plain}"
+    [ -z "$res" ] && ngstatus="${red}STOPED${plain}" || ngstatus="${green}RUNNING${plain}"
     uid=`cat /etc/v2ray/config.json | grep id | cut -d: -f2 | tr -d \",' '`
     alterid=`cat /etc/v2ray/config.json | grep alterId | cut -d: -f2 | tr -d \",' '`
     network=`cat /etc/v2ray/config.json | grep network | cut -d: -f2 | tr -d \",' '`
@@ -338,21 +338,21 @@ function info()
     security="auto"
     
     echo ============================================
-    echo -e " v2ray运行状态：${v2status}"
-    echo -e " v2ray配置文件：${red}/etc/v2ray/config.json${plain}"
-    echo -e " nginx运行状态：${ngstatus}"
-    echo -e " nginx配置文件：${red}/etc/nginx/conf.d/${domain}.conf${plain}"
+    echo -e " v2ray STATES: ${v2status}"
+    echo -e " v2ray CONFIG: ${red}/etc/v2ray/config.json${plain}"
+    echo -e " nginx STATES: ${ngstatus}"
+    echo -e " nginx CONFIG: ${red}/etc/nginx/conf.d/${domain}.conf${plain}"
     echo ""
-    echo -e "${red}v2ray配置信息：${plain}               "
-    echo -e " IP(address):  ${red}${ip}${plain}"
-    echo -e " 端口(port)：${red}${port}${plain}"
-    echo -e " id(uuid)：${red}${uid}${plain}"
-    echo -e " 额外id(alterid)： ${red}${alterid}${plain}"
-    echo -e " 加密方式(security)： ${red}$security${plain}"
-    echo -e " 传输协议(network)： ${red}${network}${plain}" 
-    echo -e " 主机名(host)：${red}${domain}${plain}"
-    echo -e " 路径(path)：${red}${path}${plain}"
-    echo -e " 安全传输(security)：${red}TLS${plain}"
+    echo -e "${red}v2rayCONFIG:${plain}               "
+    echo -e " IP: ${red}${ip}${plain}"
+    echo -e " Port: ${red}${port}${plain}"
+    echo -e " Uuid: ${red}${uid}${plain}"
+    echo -e " Alterid: ${red}${alterid}${plain}"
+    echo -e " Security:  ${red}$security${plain}"
+    echo -e " Network: ${red}${network}${plain}" 
+    echo -e " HostName: ${red}${domain}${plain}"
+    echo -e " Path: ${red}${path}${plain}"
+    echo -e " TLS: ${red}TLS${plain}"
     echo  
     echo ============================================
 }
@@ -361,9 +361,9 @@ function bbrReboot()
 {
     if [ "${bbr}" == "false" ]; then
         echo  
-        echo  为使BBR模块生效，系统将在30秒后重启
+        echo  "To make BBR effective, sys will be reboot after 30s."
         echo  
-        echo -e "您可以按 ctrl + c 取消重启，稍后输入 ${red}reboot${plain} 重启系统"
+        echo -e "ctrl+c cancel it and reboot later."
         sleep 30
         reboot
     fi
@@ -372,7 +372,7 @@ function bbrReboot()
 
 function install()
 {
-    echo -n "系统版本:  "
+    echo -n "System version: "
     cat /etc/centos-release
 
     checkSystem
@@ -389,7 +389,7 @@ function install()
 
 function uninstall()
 {
-    read -p "您确定真的要卸载v2ray吗？(y/n)" answer
+    read -p "Are you sure to uninstall?? (y/n)" answer
     [ -z ${answer} ] && answer="n"
 
     if [ "${answer}" == "y" ] || [ "${answer}" == "Y" ]; then
@@ -405,7 +405,7 @@ function uninstall()
             rm -rf /usr/share/nginx/html
             mv /usr/share/nginx/html.bak /usr/share/nginx/html
         fi
-        echo -e " ${red}卸载成功${plain}"
+        echo -e " ${red}Uninstall SUCCESS !!${plain}"
     fi
 }
 
@@ -416,8 +416,8 @@ case "$action" in
         ${action}
         ;;
     *)
-        echo "参数错误"
-        echo "用法: `basename $0` [install|uninstall]"
+        echo "Invalid argument !!"
+        echo "Usages: `basename $0` [install|uninstall]"
         ;;
 esac
 
